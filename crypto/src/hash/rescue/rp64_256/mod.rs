@@ -136,35 +136,47 @@ impl Hasher for Rp64_256 {
         let mut state = [BaseElement::ZERO; STATE_WIDTH];
         state[CAPACITY_RANGE.start] = BaseElement::new(num_elements as u64);
 
-        // break the string into 7-byte chunks, convert each chunk into a field element, and
-        // absorb the element into the rate portion of the state. we use 7-byte chunks because
-        // every 7-byte chunk is guaranteed to map to some field element.
-        let mut i = 0;
-        let mut buf = [0_u8; 8];
-        for chunk in bytes.chunks(7) {
-            if i < num_elements - 1 {
-                buf[..7].copy_from_slice(chunk);
-            } else {
-                // if we are dealing with the last chunk, it may be smaller than 7 bytes long, so
-                // we need to handle it slightly differently. we also append a byte with value 1
-                // to the end of the string; this pads the string in such a way that adding
-                // trailing zeros results in different hash
-                let chunk_len = chunk.len();
-                buf = [0_u8; 8];
-                buf[..chunk_len].copy_from_slice(chunk);
-                buf[chunk_len] = 1;
-            }
+// absorb bytes in 7-byte chunks into the rate; use two counters:
+// - rate_idx: 0..RATE_WIDTH-1, resets after each permutation
+// - chunk_num: absolute chunk index, never resets (for last-chunk detection)
+let mut rate_idx: usize = 0;
+let mut chunk_num: usize = 0;
+let mut buf = [0_u8; 8];
 
-            // convert the bytes into a field element and absorb it into the rate portion of the
-            // state; if the rate is filled up, apply the Rescue permutation and start absorbing
-            // again from zero index.
-            state[RATE_RANGE.start + i] += BaseElement::new(u64::from_le_bytes(buf));
-            i += 1;
-            if i % RATE_WIDTH == 0 {
-                Self::apply_permutation(&mut state);
-                i = 0;
-            }
-        }
+for chunk in bytes.chunks(7) {
+    let is_last = chunk_num + 1 == num_elements;
+
+    if !is_last {
+        buf[..7].copy_from_slice(chunk);
+    } else {
+        let chunk_len = chunk.len();
+        buf = [0_u8; 8];
+        buf[..chunk_len].copy_from_slice(chunk);
+        buf[chunk_len] = 1; // domain-sep / padding byte
+    }
+
+    state[RATE_RANGE.start + rate_idx] += BaseElement::new(u64::from_le_bytes(buf));
+
+    rate_idx += 1;
+    chunk_num += 1;
+
+    if rate_idx == RATE_WIDTH {
+        Self::apply_permutation(&mut state);
+        rate_idx = 0;
+    }
+}
+
+// if we absorbed some elements but didn’t apply a permutation to them (would happen when
+// the number of elements is not a multiple of RATE_WIDTH), apply the Rescue permutation.
+if rate_idx > 0 {
+    Self::apply_permutation(&mut state);
+}
+
+// if we absorbed some elements but didn’t apply a permutation to them (would happen when
+// the number of elements is not a multiple of RATE_WIDTH), apply the Rescue permutation.
+if rate_idx > 0 {
+    Self::apply_permutation(&mut state);
+}
 
         // if we absorbed some elements but didn't apply a permutation to them (would happen when
         // the number of elements is not a multiple of RATE_WIDTH), apply the Rescue permutation.
