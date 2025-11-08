@@ -207,3 +207,31 @@ proptest! {
         prop_assert_eq!(v1, v2);
     }
 }
+
+use super::Rp64_256;
+
+#[test]
+fn bytes_len_gt_56_and_not_multiple_of_7_no_panic() {
+    // 85 bytes: > 56 and not a multiple of 7; this used to panic before the fix.
+    let mut data = (0u32..85).map(|i| (i % 251) as u8).collect::<Vec<_>>();
+
+    // Should not panic and should be deterministic.
+    let d1 = Rp64_256::hash(&data);
+    let d2 = Rp64_256::hash(&data);
+    assert_eq!(d1.as_bytes(), d2.as_bytes(), "digest must be deterministic");
+
+    // Flip the last byte and confirm the digest changes (sanity).
+    data[84] ^= 0xFF;
+    let d3 = Rp64_256::hash(&data);
+    assert_ne!(d1.as_bytes(), d3.as_bytes(), "digest should change when input changes");
+}
+
+// Optional: cover several risky lengths in one go.
+#[test]
+fn regression_lengths_do_not_panic() {
+    // Includes >56 & not multiple of 7, and some boundaries.
+    for &len in &[56usize, 57, 63, 64, 85, 112, 113] {
+        let data = (0..len).map(|i| (i % 251) as u8).collect::<Vec<_>>();
+        let _ = Rp64_256::hash(&data); // must not panic
+    }
+}
