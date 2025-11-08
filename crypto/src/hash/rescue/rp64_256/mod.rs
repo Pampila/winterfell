@@ -172,6 +172,12 @@ if rate_idx > 0 {
     Self::apply_permutation(&mut state);
 }
 
+// if we absorbed some elements but didn’t apply a permutation to them (would happen when
+// the number of elements is not a multiple of RATE_WIDTH), apply the Rescue permutation.
+if rate_idx > 0 {
+    Self::apply_permutation(&mut state);
+}
+
         // if we absorbed some elements but didn't apply a permutation to them (would happen when
         // the number of elements is not a multiple of RATE_WIDTH), apply the Rescue permutation.
         // we don't need to apply any extra padding because we injected total number of elements
