@@ -182,9 +182,10 @@ if rate_idx > 0 {
         // the number of elements is not a multiple of RATE_WIDTH), apply the Rescue permutation.
         // we don't need to apply any extra padding because we injected total number of elements
         // in the input list into the capacity portion of the state during initialization.
-        if i > 0 {
-            Self::apply_permutation(&mut state);
-        }
+// NEW (correct after dual-counter refactor)
+if rate_idx > 0 {
+    Self::apply_permutation(&mut state);
+}
 
         // return the first 4 elements of the state as hash result
         ElementDigest::new(state[DIGEST_RANGE].try_into().unwrap())
